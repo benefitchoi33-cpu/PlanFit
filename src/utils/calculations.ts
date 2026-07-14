@@ -12,13 +12,32 @@ export function calculateAlternativeMetrics(
   project: ProjectInfo,
   alt: Alternative
 ): CombinedCalculationResult {
-  const netLotArea = Math.max(0.1, project.lotArea - project.roadArea);
+  if (!alt) {
+    return {
+      netLotArea: 0,
+      calculatedBuildingCoverageRatioValue: 0,
+      calculatedFloorAreaRatioValue: 0,
+      totalGenerationCount: 0,
+      totalExclAreaSum: 0,
+      totalCommAreaSum: 0,
+      totalSupplyAreaSum: 0,
+      legalParkingCount: 0,
+      parkingDeficitOrSurplus: 0,
+      parkingPerUnit: 0,
+      averageSupplyAreaPerUnit: 0,
+      floorAreaRatioBuffer: 0,
+      buildingCoverageRatioBuffer: 0,
+      isCoverageOver: false,
+      isRatioOver: false,
+    };
+  }
+  const netLotArea = Math.max(0.1, (project?.lotArea ?? 0) - (project?.roadArea ?? 0));
   
   // 건폐율 계산 = (건축면적 / 실사용대지면적) * 100
-  const calculatedBuildingCoverageRatioValue = (alt.buildingArea / netLotArea) * 100;
+  const calculatedBuildingCoverageRatioValue = ((alt.buildingArea ?? 0) / netLotArea) * 100;
   
   // 용적률 계산 = (지상연면적 / 실사용대지면적) * 100
-  const calculatedFloorAreaRatioValue = (alt.aboveGroundFloorArea / netLotArea) * 100;
+  const calculatedFloorAreaRatioValue = ((alt.aboveGroundFloorArea ?? 0) / netLotArea) * 100;
   
   // 세대수 및 면적 합계
   let totalGenerationCount = 0;
@@ -32,27 +51,28 @@ export function calculateAlternativeMetrics(
   let parkingByArea = 0;
   let parkingByUnitMin = 0;
   
-  alt.types.forEach((type) => {
-    const qty = type.count;
+  const types = alt.types || [];
+  types.forEach((type) => {
+    const qty = type.count || 0;
     totalGenerationCount += qty;
     
-    totalExclAreaSum += type.exclArea * qty;
-    totalCommAreaSum += type.commArea * qty;
+    totalExclAreaSum += (type.exclArea || 0) * qty;
+    totalCommAreaSum += (type.commArea || 0) * qty;
     
-    const supplyPerUnit = type.exclArea + type.commArea;
+    const supplyPerUnit = (type.exclArea || 0) + (type.commArea || 0);
     totalSupplyAreaSum += supplyPerUnit * qty;
     
     // 주차 대수 계산 (면적 기준 면적당 대수 합산)
-    if (type.exclArea <= 85) {
-      parkingByArea += (type.exclArea * qty) / 75;
+    if ((type.exclArea || 0) <= 85) {
+      parkingByArea += ((type.exclArea || 0) * qty) / 75;
     } else {
-      parkingByArea += (type.exclArea * qty) / 65;
+      parkingByArea += ((type.exclArea || 0) * qty) / 65;
     }
     
     // 주차 대수 계산 (세대 하한 기준 합산)
-    if (type.exclArea <= 60) {
+    if ((type.exclArea || 0) <= 60) {
       parkingByUnitMin += qty * 0.7;
-    } else if (type.exclArea <= 85) {
+    } else if ((type.exclArea || 0) <= 85) {
       parkingByUnitMin += qty * 1.0;
     } else {
       parkingByUnitMin += qty * 1.3;

@@ -91,7 +91,7 @@ ${(currentAlternative.types || []).map((t: any) => `- ${t.name}타입: 전용면
 
 사용자의 요청에 대해 친절하고 전문적인 건축 실무 용어(용적률, 건폐율, 연면적, 세대당 주차, 주민공동시설 등)를 사용하여 상세히 한글로 피드백을 작성해 주세요. 또한 어조는 정중하고 실용적으로 답변해야 합니다.`;
 
-    const modelName = "gemini-2.5-flash"; // Recommended model for text tasks
+    const modelName = "gemini-3.5-flash"; // Recommended model for text tasks
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [
@@ -163,7 +163,7 @@ app.post("/api/gemini/generate-alternative", async (req, res) => {
 6. 전체 주동의 연면적총합(types의 (exclArea+commArea)*count 합산)은 용적률 상한 연면적(${maxFarPlanArea}㎡) 이하를 정밀 준수하면서도 85%~98% 성능을 확보해야 합니다.
 7. 'aiRationale' 란에는 이 대안을 설계한 동기와 핵심 설계 의사 결정(예: '주차 조례 완벽 충족 및 84㎡ 중심의 조화형 단지 배치안')을 고급스럽고 읽기 좋은 한글로 요약하여 출력해 주세요.`;
 
-    const modelName = "gemini-2.5-flash"; 
+    const modelName = "gemini-3.5-flash"; 
     const response = await ai.models.generateContent({
       model: modelName,
       contents: prompt,

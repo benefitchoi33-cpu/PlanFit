@@ -1,0 +1,8 @@
+{
+  "name": "Remix: 공동주택 규모검토 시스템",
+  "description": "건축사무소 실무용 공동주택 규모검토 및 다각적 대안 비교 도구 (AI 법규/설계 피드백 연동)",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -11,6 +11,11 @@ const PORT = 3000;
 
 app.use(express.json());
 
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.url}`);
+  next();
+});
+
 // Initialize Gemini SDK with telemetry header as instructed
 const getGeminiClient = (userApiKey?: string) => {
   const apiKey = userApiKey || process.env.GEMINI_API_KEY;

@@ -77,10 +77,134 @@ export const AiAlternativeGenerator: React.FC<AiAlternativeGeneratorProps> = ({
         onShowNotification("✨ 새로운 AI 기획 대안이 성공적으로 도출되었습니다!", "success");
       }
     } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || "AI 대안 생성 중 에러가 발생했습니다.");
-      if (onShowNotification) {
-        onShowNotification("⚠️ AI 대안 도출에 실패했습니다. API 설정을 확인하세요.", "error");
+      console.error("Backend AI fetch failed, trying client-side fallback:", err);
+      
+      if (apiKey) {
+        try {
+          if (onShowNotification) {
+            onShowNotification("🔄 백엔드 연결 차단으로 인해 브라우저에서 직접 Gemini API 호출을 시도합니다...", "info");
+          }
+          
+          const targetFar = currentAlternative.targetFloorAreaRatio ?? 250;
+          const targetBcr = currentAlternative.targetBuildingCoverageRatio ?? 50;
+          const netArea = Math.max(100, project.lotArea - (project.roadArea ?? 0));
+          
+          const maxBcrPlanArea = netArea * (targetBcr / 100);
+          const maxFarPlanArea = netArea * (targetFar / 100);
+
+          const promptText = `당신은 대한민국 공동주택 규모검토 전문가이자 AI 아키텍트입니다.
+주어진 대지 정보와 지침을 완벽히 준수하는 창의적이고 사업 타당성이 뛰어난 기획 대안(Alternative)을 기획하여 지정된 JSON 스키마 형식으로 출력해 주세요.
+
+이번 기획안의 핵심 설계 주안점(objective)은 다음과 같습니다: [${objective || "balanced"}]
+- "maximize_revenue" (수익가치 극대화형): 84㎡, 114㎡ 등 대형 평형대 비율을 최대화하고, 주민커뮤니티 시설과 사업 가치를 타점하여 분양 연면적을 높임.
+- "maximize_units" (밀집효율 극대화형): 59㎡ 중심의 중소형 위주로 다세대 공급을 극대화하여 밀도를 높임.
+- "balanced" (조화로운 실무형): 59-84-114타입을 안정적으로 배치하고 용적률 마진을 준수.
+- "premium_parking" (고급주차 쾌적형): 주거 쾌적성을 위해 세대당 주차 1.5대 근접 확보를 설계하고 지하층을 꼼꼼하게 배치.
+
+[현재 대지 조건 정보]
+- 프로젝트명: ${project.projectName || "미정"}
+- 용도지역: ${project.zoneType || "미정"}
+- 대지면적: ${project.lotArea} ㎡ (도로제척: ${project.roadArea ?? 0}㎡, 실사용대면적: ${netArea}㎡)
+- 건폐율 한계 규제: ${targetBcr}% (최대 계획건축면적: ${maxBcrPlanArea}㎡)
+- 용적률 한계 규제: ${targetFar}% (최대 지상연면적 한계: ${maxFarPlanArea}㎡)
+
+[기존 검토안 수치 참고용]
+- 기존 동수 및 최고층수: ${currentAlternative.buildingCount}개동 / ${currentAlternative.maxFloors}층
+- 기존 건축면적: ${currentAlternative.buildingArea}㎡
+- 기존 지상연면적: ${currentAlternative.aboveGroundFloorArea}㎡
+
+설계 엔지니어링 룰:
+1. 'buildingCount'(동수)는 3~6동 범위로 설계해 조화롭게 배치하세요.
+2. 'maxFloors'(최고층수)는 10~30층 범위로 하세요.
+3. 'buildingArea'는 최대 계획건축면적(${maxBcrPlanArea}㎡) 이하로 규제를 초과하지 않도록 70%~95% 선에서 대입하세요.
+4. 'podiumFloors', 'refugeFloors' 등은 타겟 구성을 바탕으로 0 또는 1로 적절히 설계하세요. (기본값 설정 권장)
+5. 'types' 배열에는 세대 구성을 지정하세요. 각 타입 아이템은 name(예: "59A", "84A", "114A"), exclArea(전용면적, 대표 59.9, 84.9, 114.8 등), commArea(공용면적, 각각 18㎡, 24㎡, 32㎡ 수준), count(배정세대수), unitsPerFloor(동별 층당 호수, 소수점 절대 금지 및 무조건 1, 2, 3, 4 등의 정수 형태로 입력)를 대입하십시오.
+6. 전체 주동의 연면적총합(types의 (exclArea+commArea)*count 합산)은 용적률 상한 연면적(${maxFarPlanArea}㎡) 이하를 정밀 준수하면서도 85%~98% 성능을 확보해야 합니다.
+7. 'aiRationale' 란에는 이 대안을 설계한 동기와 핵심 설계 의사 결정(예: '주차 조례 완벽 충족 및 84㎡ 중심의 조화형 단지 배치안')을 고급스럽고 읽기 좋은 한글로 요약하여 출력해 주세요.`;
+
+          const directResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      {
+                        text: promptText,
+                      },
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                    type: "OBJECT",
+                    properties: {
+                      name: { type: "STRING", description: "새로운 대안의 한글 명칭 (예: 'AI 기획 완벽 대칭형')" },
+                      buildingCount: { type: "INTEGER", description: "동수 (3~6 사이)" },
+                      maxFloors: { type: "INTEGER", description: "최고층수 (10~30 사이)" },
+                      buildingArea: { type: "NUMBER", description: "계획 건축면적 (㎡)" },
+                      podiumFloors: { type: "INTEGER", description: "지상 포디움 층수 (0 또는 1)" },
+                      refugeFloors: { type: "INTEGER", description: "지상 피난 층수 (0 또는 1)" },
+                      unitSelectionMode: { type: "STRING", description: "항상 'layout' 입력" },
+                      types: {
+                        type: "ARRAY",
+                        items: {
+                          type: "OBJECT",
+                          properties: {
+                            name: { type: "STRING", description: "타입 이름 (예: '59A', '84A')" },
+                            exclArea: { type: "NUMBER", description: "전용면적 (㎡)" },
+                            commArea: { type: "NUMBER", description: "주거공용면적 (㎡)" },
+                            count: { type: "INTEGER", description: "배정할 세대수" },
+                            unitsPerFloor: { type: "INTEGER", description: "동별 층당 호수" }
+                          },
+                          required: ["name", "exclArea", "commArea", "count", "unitsPerFloor"]
+                        }
+                      },
+                      aiRationale: { type: "STRING", description: "AI 설계 동기와 타당성 한글 총평" }
+                    },
+                    required: ["name", "buildingCount", "maxFloors", "buildingArea", "types", "aiRationale"]
+                  },
+                },
+              }),
+            }
+          );
+
+          if (!directResponse.ok) {
+            throw new Error(`Google API 직접 호출 오류 (HTTP ${directResponse.status})`);
+          }
+
+          const directData = await directResponse.json();
+          const responseText = directData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!responseText) {
+            throw new Error("Gemini API가 빈 응답을 반환했습니다.");
+          }
+
+          const parsedData = JSON.parse(responseText);
+          if (!parsedData.name || !parsedData.types) {
+            throw new Error("AI가 유효한 대안 규격을 반환하지 않았습니다.");
+          }
+
+          setGeneratedAlt(parsedData);
+          if (onShowNotification) {
+            onShowNotification("✨ 브라우저 직접 연결을 통해 새로운 AI 기획 대안이 성공적으로 도출되었습니다!", "success");
+          }
+        } catch (fallbackErr: any) {
+          console.error("Fallback failed too:", fallbackErr);
+          setErrorMsg(`AI 대안 생성에 실패했습니다.\n- 서버 연결 요류: ${err.message}\n- 직접 API 호출 오류: ${fallbackErr.message}\n\n화면 상단에 올바른 Gemini API Key를 입력했는지 다시 한번 확인해 주세요.`);
+          if (onShowNotification) {
+            onShowNotification("⚠️ AI 대안 도출에 완전히 실패했습니다. API 키 유효성을 확인해 주세요.", "error");
+          }
+        }
+      } else {
+        setErrorMsg(err.message || "AI 대안 생성 중 에러가 발생했습니다.");
+        if (onShowNotification) {
+          onShowNotification("⚠️ AI 대안 도출에 실패했습니다. API 설정을 확인하세요.", "error");
+        }
       }
     } finally {
       setLoading(false);

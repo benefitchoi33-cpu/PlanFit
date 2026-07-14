@@ -83,12 +83,101 @@ export const AiAdvisorPanel: React.FC<AiAdvisorPanelProps> = ({
 
       setMessages((prev) => [...prev, { sender: "ai", text: data.text || "죄송합니다, 피드백을 제공할 수 없습니다." }]);
     } catch (err: any) {
-      console.error(err);
-      setErrorText(err.message || "AI 검토 중 에러가 발생했습니다.");
-      setMessages((prev) => [
-        ...prev,
-        { sender: "ai", text: `⚠️ 죄송합니다. 규모검토 피드백 도중 오류가 발생했습니다. 개발 서버 환경의 GEMINI_API_KEY 등록 및 유효성 상태를 다시 확인해 주십시오.\n\n(상세 에러 내용: ${err.message || err})` },
-      ]);
+      console.error("Backend AI review failed, trying client-side fallback:", err);
+      
+      if (apiKey) {
+        try {
+          const targetFar = currentAlternative.targetFloorAreaRatio ?? 0;
+          const calcFar = currentAlternative.calculatedFloorAreaRatioValue !== undefined 
+            ? (currentAlternative.calculatedFloorAreaRatioValue as number).toFixed(2) 
+            : (currentAlternative.aboveGroundFloorArea / Math.max(1, (project.lotArea - (project.roadArea ?? 0))) * 100).toFixed(2);
+
+          const targetBcr = currentAlternative.targetBuildingCoverageRatio ?? 0;
+          const calcBcr = currentAlternative.calculatedBuildingCoverageRatioValue !== undefined 
+            ? (currentAlternative.calculatedBuildingCoverageRatioValue as number).toFixed(2) 
+            : (currentAlternative.buildingArea / Math.max(1, (project.lotArea - (project.roadArea ?? 0))) * 100).toFixed(2);
+
+          const plannedParking = currentAlternative.plannedParkingCount ?? 0;
+          const legalParking = currentAlternative.legalParkingCount !== undefined 
+            ? (currentAlternative.legalParkingCount as number).toFixed(2) 
+            : "1.00계획대비 산정필요";
+
+          const systemPrompt = `당신은 대한민국 건축 법규 및 공동주택 규모검토 전문 AI 건축사 보좌관입니다.
+건축 실무자가 제공하는 공동주택 개요 정보와 현재 검토 중인 대안(안) 데이터를 바탕으로, 다음과 같은 설계 및 법규 피드백을 제공해야 합니다.
+
+현행 대한민국 건축법, 국토의 계획 및 이용에 관한 법률, 주택법, 주차장법 고유 기준을 기반으로 답변하되, 구체적인 수치가 비정상적이거나 법적 제한을 초과하는지 찾아보세요.
+예:
+- 대지면적 대비 건폐율 및 용적률이 한계치(예: 제3종일반주거지역 건폐율 50%, 용적률 250% 등)에 적정한지 점검. (사용자가 입력한 한계값 규제와 실제 계산값을 비교하여 분석해 줌)
+- 주차대수 산정 기준: 세대당 주차대수가 적절한지(최소 1.0대 이상 권장, 전용면적당 대수 등 법적 한계) 가이드 제공.
+- 세대 구성별 주거 편의성 조언 및 주민공동시설 면적 규정 (300세대 이상: 300 + 세대당 1.2㎡ 등 간략 가이드) 피드백 제공.
+- 향후 일조권, 사선제한, 동간 거리 검토 시 주의사항 언급.
+
+[현재 프로젝트 기본 정보]
+- 프로젝트명: ${project.projectName || "미정"}
+- 대지위치/용도지역: ${project.location || "미정"} / ${project.zoneType || "미정"}
+- 대지면적: ${project.lotArea} ㎡
+
+[선택된 검토 대안 정보: ${currentAlternative.name}]
+- 동수 / 최고층수: ${currentAlternative.buildingCount}개동 / 최고 ${currentAlternative.maxFloors}층
+- 용적률 제한: ${targetFar}% (계산된 계획 용적률: ${calcFar}%)
+- 건폐율 제한: ${targetBcr}% (계산된 계획 건폐율: ${calcBcr}%)
+- 지상 연면적: ${(currentAlternative.aboveGroundFloorArea || 0).toLocaleString()} ㎡
+- 지하 연면적: ${(currentAlternative.undergroundFloorArea || 0).toLocaleString()} ㎡
+- 전체 세대수: ${currentAlternative.totalGenerationCount || 0} 세대
+- 계획 주차대수: ${plannedParking} 대 (법정 주차대수: ${legalParking}대)
+- 주민공동시설 계획면적: ${currentAlternative.communityFacilityArea || 0} ㎡
+
+[타입 구성]
+${(currentAlternative.types || []).map((t: any) => `- ${t.name}타입: 전용면적 ${t.exclArea}㎡, 세대수 ${t.count}세대`).join('\n')}
+
+사용자의 요청에 대해 친절하고 전문적인 건축 실무 용어(용적률, 건폐율, 연면적, 세대당 주차, 주민공동시설 등)를 사용하여 상세히 한글로 피드백을 작성해 주세요. 또한 어조는 정중하고 실용적으로 답변해야 합니다.`;
+
+          const directResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      { text: systemPrompt },
+                      { text: text || "현재 대안에 대한 전체적인 법적/설계 가이드라인 및 타당성 규모검토 피드백을 주세요." }
+                    ],
+                  },
+                ],
+              }),
+            }
+          );
+
+          if (!directResponse.ok) {
+            throw new Error(`Google API 직접 호출 오류 (HTTP ${directResponse.status})`);
+          }
+
+          const directData = await directResponse.json();
+          const responseText = directData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!responseText) {
+            throw new Error("Gemini API가 빈 응답을 반환했습니다.");
+          }
+
+          setMessages((prev) => [...prev, { sender: "ai", text: responseText }]);
+        } catch (fallbackErr: any) {
+          console.error("Feedback fallback failed too:", fallbackErr);
+          setErrorText(`AI 검토 중 에러가 발생했습니다:\n- 서버 오류: ${err.message}\n- 직접 호출 오류: ${fallbackErr.message}`);
+          setMessages((prev) => [
+            ...prev,
+            { sender: "ai", text: `⚠️ AI 자문 도중 에러가 발생했습니다. 입력하신 API Key 유효성을 다시 확인해 주세요.\n\n(상세 내용:\n서버 에러: ${err.message}\n직접 호출 에러: ${fallbackErr.message})` },
+          ]);
+        }
+      } else {
+        setErrorText(err.message || "AI 검토 중 에러가 발생했습니다.");
+        setMessages((prev) => [
+          ...prev,
+          { sender: "ai", text: `⚠️ 죄송합니다. 규모검토 피드백 도중 오류가 발생했습니다. 개발 서버 환경의 GEMINI_API_KEY 등록 혹은 브라우저 저장용 API Key 입력을 확인해 주세요.\n\n(상세 에러 내용: ${err.message || err})` },
+        ]);
+      }
     } finally {
       setIsLoading(false);
     }

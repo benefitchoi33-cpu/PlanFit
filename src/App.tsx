@@ -118,15 +118,24 @@ export default function App() {
   const [activeMobileTab, setActiveMobileTab] = useState<"site" | "design" | "ai" | "compare">("site");
   const [uploadStatus, setUploadStatus] = useState<string>("");
 
-  // API Key state with localStorage persistence
+  // API Key state with safe localStorage persistence to prevent iframe security exceptions (blank screen crashes)
   const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem("gemini_user_api_key") || "";
+    try {
+      return localStorage.getItem("gemini_user_api_key") || "";
+    } catch (e) {
+      console.warn("localStorage is not available in this environment:", e);
+      return "";
+    }
   });
   const [isKeyVisible, setIsKeyVisible] = useState<boolean>(false);
 
   const handleApiKeyChange = (val: string) => {
     setApiKey(val);
-    localStorage.setItem("gemini_user_api_key", val);
+    try {
+      localStorage.setItem("gemini_user_api_key", val);
+    } catch (e) {
+      console.warn("localStorage is not available to write in this environment:", e);
+    }
   };
 
   const handleMobileTabChange = (tab: "site" | "design" | "ai" | "compare") => {

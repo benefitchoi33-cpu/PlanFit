@@ -133,7 +133,7 @@ ${(currentAlternative.types || []).map((t: any) => `- ${t.name}타입: 전용면
 사용자의 요청에 대해 친절하고 전문적인 건축 실무 용어(용적률, 건폐율, 연면적, 세대당 주차, 주민공동시설 등)를 사용하여 상세히 한글로 피드백을 작성해 주세요. 또한 어조는 정중하고 실용적으로 답변해야 합니다.`;
 
           const directResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
             {
               method: "POST",
               headers: {

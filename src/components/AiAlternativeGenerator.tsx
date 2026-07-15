@@ -123,7 +123,7 @@ export const AiAlternativeGenerator: React.FC<AiAlternativeGeneratorProps> = ({
 7. 'aiRationale' 란에는 이 대안을 설계한 동기와 핵심 설계 의사 결정(예: '주차 조례 완벽 충족 및 84㎡ 중심의 조화형 단지 배치안')을 고급스럽고 읽기 좋은 한글로 요약하여 출력해 주세요.`;
 
           const directResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
             {
               method: "POST",
               headers: {
